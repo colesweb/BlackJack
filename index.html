@@ -134,7 +134,11 @@
         }
         .hand { display: flex; flex-direction: column; align-items: center; transition: opacity 0.3s; }
         .hand.faded { opacity: 0.4; }
+        
+        /* New Hand Bet Display */
         .hand-score { background: rgba(0,0,0,0.8); padding: 2px 8px; border-radius: 10px; font-size: 0.8rem; margin-bottom: 5px; border: 1px solid #555; }
+        .hand-bet { color: var(--gold); font-weight: bold; font-size: 0.9rem; text-shadow: 0 1px 2px black; margin-top: 3px; }
+        
         .cards-row { display: flex; justify-content: center; }
 
         /* CONTROLS */
@@ -638,7 +642,13 @@
                 sc.className = 'hand-score';
                 sc.textContent = getScore(h.cards);
                 
+                // Bet Amount (NEW)
+                const betDiv = document.createElement('div');
+                betDiv.className = 'hand-bet';
+                betDiv.textContent = `BET: $${h.bet}`;
+
                 wrap.appendChild(sc);
+                wrap.appendChild(betDiv);
                 wrap.appendChild(row);
                 hDiv.appendChild(wrap);
             });
