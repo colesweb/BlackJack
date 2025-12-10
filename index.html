@@ -176,7 +176,7 @@
         }
         .btn-action:active { transform: translateY(4px); box-shadow: none; }
         
-        /* New Style for Disabled Hit/Stand Buttons */
+        /* Disabled Button Style */
         .btn-action:disabled {
             opacity: 0.5;
             background: #444;
@@ -305,7 +305,7 @@
                         <button class="btn-action btn-sec" id="btn-split" style="flex:1" onclick="doSplit()" disabled>Split</button>
                         <button class="btn-action btn-sec" id="btn-double" style="flex:1" onclick="doDouble()" disabled>Double</button>
                     </div>
-                    <button class="btn-action btn-hit" onclick="doHit()">HIT</button>
+                    <button class="btn-action btn-hit" id="btn-hit" onclick="doHit()">HIT</button>
                     <button class="btn-action btn-stand" id="btn-stand" onclick="doStand()">STAND</button>
                 </div>
 
@@ -475,6 +475,14 @@
             });
         }
 
+        // --- HELPER TO DISABLE ALL BUTTONS IMMEDIATELY ---
+        function disableAllButtons() {
+            document.getElementById('btn-hit').disabled = true;
+            document.getElementById('btn-stand').disabled = true;
+            document.getElementById('btn-split').disabled = true;
+            document.getElementById('btn-double').disabled = true;
+        }
+
         // --- GAME LOGIC ---
         function makeDeck() {
             const s = ['h','d','c','s'];
@@ -505,18 +513,41 @@
             hands[0].cards.push(deck.pop());
             dealer.push(deck.pop()); 
 
+            checkSideBet();
+
+            // --- INSTANT BLACKJACK CHECK ---
+            const pInfo = getHandInfo(hands[0].cards);
+            const dInfo = getHandInfo(dealer);
+            const playerBJ = (pInfo.score === 21);
+            const dealerBJ = (dInfo.score === 21);
+
+            if (playerBJ) {
+                // INSTANT WIN/PUSH - LOCK EVERYTHING
+                disableAllButtons();
+                state = 'RESULT';
+                renderTable(); 
+
+                if (dealerBJ) {
+                    showMsg("PUSH", "Dealer also has Blackjack");
+                    user.bal += bets.main; 
+                } else {
+                    const profit = bets.main * 1.5; 
+                    const totalReturn = bets.main + profit;
+                    user.bal += totalReturn;
+                    showMsg("BLACKJACK!", "Winner 2.5x Payout");
+                }
+
+                updateBalDisplay();
+                db.collection("players").doc(user.id).update({balance: user.bal});
+                setUI('RESULT');
+                init();
+                return;
+            }
+
+            // Normal Game Start
             state = 'PLAYING';
             setUI('PLAYING');
             renderTable();
-            checkSideBet();
-
-            // Check if player has instant blackjack
-            const pInfo = getHandInfo(hands[0].cards);
-            if(pInfo.score === 21) {
-                // POPUP NOTIFICATION
-                showMsg("BLACKJACK!", "Pays 2.5x");
-                setTimeout(doStand, 1500); // Wait 1.5s to see the message
-            }
         }
 
         function checkSideBet() {
@@ -550,27 +581,39 @@
         // --- ACTIONS ---
         function doHit() {
             hands[actHand].cards.push(deck.pop());
-            renderTable();
-            if(getHandInfo(hands[actHand].cards).score > 21) {
-                hands[actHand].bust = true;
-                toast("BUST!"); 
-                showMsg("PLAYER BUST");
-                setTimeout(() => {
-                    document.getElementById('msg').classList.remove('show');
-                    nextHand();
-                }, 1000);
-            }
+            const info = getHandInfo(hands[actHand].cards);
+            
+            // Render the table to show the new card
+            renderTable(); 
+
+            // If we busted OR hit 21, lock input immediately
+            // Note: renderTable calls updateButtons, so we must re-disable AFTER rendering
+            if(info.score >= 21) {
+                disableAllButtons(); // FORCE DISABLE after render
+                
+                if(info.score > 21) {
+                    hands[actHand].bust = true;
+                    showMsg("PLAYER BUST");
+                    setTimeout(() => {
+                        document.getElementById('msg').classList.remove('show');
+                        nextHand();
+                    }, 750);
+                } else {
+                    // Exactly 21 - Auto Stand logic
+                    setTimeout(nextHand, 500); 
+                }
+            } 
         }
 
         function doStand() {
-            // Disable button immediately so it can't be clicked twice
-            document.getElementById('btn-stand').disabled = true;
-            // Hide any lingering Blackjack message before moving on
+            disableAllButtons();
             document.getElementById('msg').classList.remove('show');
             nextHand();
         }
 
         function doDouble() {
+            disableAllButtons(); // Lock buttons FIRST
+            
             const h = hands[actHand];
             if(user.bal < h.bet) return toast("Insufficient Funds");
             
@@ -580,7 +623,10 @@
             updateBalDisplay();
             
             h.cards.push(deck.pop());
-            renderTable();
+            
+            // Render card, but ensure buttons stay locked!
+            renderTable(); 
+            disableAllButtons(); // Force re-lock after render just to be safe
             
             if(getHandInfo(h.cards).score > 21) {
                 h.bust = true;
@@ -588,9 +634,9 @@
                 setTimeout(() => {
                     document.getElementById('msg').classList.remove('show');
                     nextHand();
-                }, 1000);
+                }, 750);
             } else {
-                nextHand();
+                setTimeout(nextHand, 1000);
             }
         }
 
@@ -723,7 +769,8 @@
             document.getElementById('val-main').textContent = "$0";
             document.getElementById('val-side').textContent = "$0";
             document.getElementById('btn-deal').disabled = true;
-            document.getElementById('btn-stand').disabled = false; // Reset Stand button
+            document.getElementById('btn-stand').disabled = false;
+            document.getElementById('btn-hit').disabled = false;
             
             setUI('BETTING');
         }
@@ -791,8 +838,9 @@
             document.getElementById('btn-split').disabled = !canSplit;
             document.getElementById('btn-double').disabled = !canDouble;
             
-            // Re-enable Stand button if it was disabled (e.g., after splitting and standing on first hand)
+            // Re-enable hit/stand when switching hands (e.g. after split)
             document.getElementById('btn-stand').disabled = false;
+            document.getElementById('btn-hit').disabled = false;
         }
 
         function mkCard(c, hidden) {
