@@ -175,6 +175,16 @@
             text-transform: uppercase; box-shadow: 0 4px 0 rgba(0,0,0,0.4); 
         }
         .btn-action:active { transform: translateY(4px); box-shadow: none; }
+        
+        /* New Style for Disabled Hit/Stand Buttons */
+        .btn-action:disabled {
+            opacity: 0.5;
+            background: #444;
+            color: #888;
+            box-shadow: none;
+            pointer-events: none;
+        }
+
         .btn-hit { background: #27ae60; }
         .btn-stand { background: #c0392b; }
         .btn-sec { background: #2980b9; font-size: 0.9rem; padding: 10px; }
@@ -296,7 +306,7 @@
                         <button class="btn-action btn-sec" id="btn-double" style="flex:1" onclick="doDouble()" disabled>Double</button>
                     </div>
                     <button class="btn-action btn-hit" onclick="doHit()">HIT</button>
-                    <button class="btn-action btn-stand" onclick="doStand()">STAND</button>
+                    <button class="btn-action btn-stand" id="btn-stand" onclick="doStand()">STAND</button>
                 </div>
 
                 <div id="ui-result" class="play-controls" style="grid-template-columns:1fr">
@@ -553,6 +563,8 @@
         }
 
         function doStand() {
+            // Disable button immediately so it can't be clicked twice
+            document.getElementById('btn-stand').disabled = true;
             // Hide any lingering Blackjack message before moving on
             document.getElementById('msg').classList.remove('show');
             nextHand();
@@ -655,9 +667,6 @@
                 const pInfo = getHandInfo(h.cards);
                 const ps = pInfo.score;
                 
-                // --- SPLIT BLACKJACK LOGIC ---
-                // Removed 'hands.length === 1' check. 
-                // Now supports BJ payout on split hands.
                 const playerBJ = (ps === 21 && pInfo.count === 2 && !h.dbl); 
 
                 let multiplier = 0;
@@ -714,6 +723,7 @@
             document.getElementById('val-main').textContent = "$0";
             document.getElementById('val-side').textContent = "$0";
             document.getElementById('btn-deal').disabled = true;
+            document.getElementById('btn-stand').disabled = false; // Reset Stand button
             
             setUI('BETTING');
         }
@@ -780,6 +790,9 @@
             
             document.getElementById('btn-split').disabled = !canSplit;
             document.getElementById('btn-double').disabled = !canDouble;
+            
+            // Re-enable Stand button if it was disabled (e.g., after splitting and standing on first hand)
+            document.getElementById('btn-stand').disabled = false;
         }
 
         function mkCard(c, hidden) {
